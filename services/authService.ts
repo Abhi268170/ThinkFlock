@@ -1,4 +1,4 @@
-import { User } from '../types';
+import { User, PublicUser } from '../types';
 
 const USERS_STORAGE_KEY = 'brainstorm_app_users';
 
@@ -42,7 +42,8 @@ const hashPassword = (password: string): string => {
 };
 
 export const authService = {
-  signUp: (email: string, password: string): Promise<User> => {
+  // Fix: Updated return type to Promise<PublicUser> for type safety.
+  signUp: (email: string, password: string): Promise<PublicUser> => {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         // Re-load users to ensure we have the latest list
@@ -65,7 +66,8 @@ export const authService = {
     });
   },
 
-  login: (email: string, password: string): Promise<User> => {
+  // Fix: Updated return type to Promise<PublicUser> for type safety.
+  login: (email: string, password: string): Promise<PublicUser> => {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         // Re-load users to ensure we have the latest list

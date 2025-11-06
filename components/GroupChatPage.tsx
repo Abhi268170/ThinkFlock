@@ -50,6 +50,12 @@ const GroupChatPage: React.FC<GroupChatPageProps> = ({ config, onEndSession }) =
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const personaMap = useMemo(() => {
+    const map = new Map<string, Persona>();
+    config.personas.forEach(p => map.set(p.name, p));
+    return map;
+  }, [config.personas]);
+
   // --- Initialization ---
 
   useEffect(() => {
@@ -287,14 +293,6 @@ const GroupChatPage: React.FC<GroupChatPageProps> = ({ config, onEndSession }) =
   };
 
   // --- UI Helpers ---
-
-  const getAvatarColor = (sender: string) => {
-    if (sender === 'user') return 'bg-indigo-500';
-    if (sender === 'System' || sender === 'Persona Discussion') return 'bg-gray-400';
-    const colors = ['bg-green-500', 'bg-blue-500', 'bg-purple-500', 'bg-yellow-500', 'bg-red-500', 'bg-pink-500'];
-    const index = config.personas.findIndex(p => p.name === sender);
-    return colors[index % colors.length] || 'bg-gray-500';
-  };
   
   const getInitials = (name: string) => {
     if (name === 'user') return 'U';
@@ -319,15 +317,40 @@ const GroupChatPage: React.FC<GroupChatPageProps> = ({ config, onEndSession }) =
             </button>
         </div>
 
+        {/* Participants Header */}
+        <div className="flex items-center p-3 space-x-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 overflow-x-auto">
+            <span className="text-sm font-semibold text-gray-600 dark:text-gray-400 flex-shrink-0">Participants:</span>
+            <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold bg-indigo-500">U</div>
+                    <span className="text-sm font-medium text-gray-800 dark:text-white">You</span>
+                </div>
+                {config.personas.map(persona => (
+                    <div key={persona.name} className="flex items-center space-x-2 flex-shrink-0">
+                        <img src={persona.avatarUrl} alt={persona.name} className="w-8 h-8 rounded-full object-cover" />
+                        <span className="text-sm font-medium text-gray-800 dark:text-white">{persona.name}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+
+
         {/* Chat Area */}
         <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6">
           {messages.map((msg, index) => (
             <div key={index} className={`flex items-start gap-3 ${msg.sender === 'user' ? 'justify-end' : ''}`}>
-               {msg.sender !== 'user' && (
-                <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold ${getAvatarColor(msg.sender)}`}>
-                  {getInitials(msg.sender)}
-                </div>
-              )}
+               {msg.sender !== 'user' && (() => {
+                  const persona = personaMap.get(msg.sender);
+                  if (persona) {
+                    return <img src={persona.avatarUrl} alt={persona.name} className="w-10 h-10 rounded-full flex-shrink-0 object-cover" />;
+                  }
+                  return ( // Fallback for System, Persona Discussion
+                    <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold bg-gray-400">
+                      {getInitials(msg.sender)}
+                    </div>
+                  );
+                })()}
+
               <div className={`max-w-xl p-3 rounded-lg ${
                 msg.sender === 'user' 
                   ? 'bg-indigo-500 text-white' 
@@ -336,18 +359,28 @@ const GroupChatPage: React.FC<GroupChatPageProps> = ({ config, onEndSession }) =
                 {msg.sender !== 'user' && <p className="font-bold text-sm mb-1">{msg.sender}</p>}
                 <MarkdownRenderer content={msg.text} />
               </div>
+
                {msg.sender === 'user' && (
-                <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold ${getAvatarColor(msg.sender)}`}>
+                <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold bg-indigo-500">
                   {getInitials(msg.sender)}
                 </div>
               )}
             </div>
           ))}
+
           {isThinking && (
              <div className="flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-300 dark:bg-gray-600 ${getAvatarColor(thinkingPersona || 'System')}`}>
-                  {thinkingPersona ? getInitials(thinkingPersona) : <ThinkingIcon />}
-                </div>
+                {(() => {
+                  const persona = thinkingPersona ? personaMap.get(thinkingPersona) : null;
+                  if (persona) {
+                    return <img src={persona.avatarUrl} alt={persona.name} className="w-10 h-10 rounded-full flex-shrink-0 object-cover" />;
+                  }
+                  return (
+                    <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-300 dark:bg-gray-600">
+                        {thinkingPersona ? getInitials(thinkingPersona) : <ThinkingIcon />}
+                    </div>
+                  );
+                })()}
                 <div className="max-w-md p-3 rounded-lg bg-gray-100 dark:bg-gray-700">
                   <p className="font-bold text-sm mb-1 text-gray-800 dark:text-gray-200">{thinkingPersona || 'Team'} is thinking...</p>
                 </div>

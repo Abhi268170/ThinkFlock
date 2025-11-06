@@ -1,10 +1,12 @@
 
 import React, { createContext, useState, useContext, ReactNode } from 'react';
-import { User } from '../types';
+// Fix: Use PublicUser type which omits sensitive fields.
+import { PublicUser } from '../types';
 import { authService } from '../services/authService';
 
 interface AuthContextType {
-  user: User | null;
+  // Fix: Use PublicUser type for the user object in the context.
+  user: PublicUser | null;
   login: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -16,7 +18,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  // Fix: Use PublicUser type for the user state.
+  const [user, setUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -8,10 +8,19 @@ interface DashboardPageProps {
   sessionHistory: SessionHistoryItem[];
 }
 
+// Fallback SVG avatars (Base64 encoded)
+const placeholderAvatars = [
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNTAiIGZpbGw9IiM2MzY2RjEiLz48cGF0aCBkPSJNNTAgMEMyMi4zODU4IDAgMCAyMi4zODU4IDAgNTBINTBWMFoiIGZpbGw9IiNBNUI0RkMiLz48L3N2Zz4=',
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNTAiIGZpbGw9IiMwNUk5NkIiLz48cGF0aCBkPSJNNTAgMTAwQzc3LjYxNDIgMTAwIDEwMCA3Ny42MTQyIDEwMCA1MEg1MFYxMDBaIiBmaWxsPSIjNzREN0VCIi8+PC9zdmc+',
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNTAiIGZpbGw9IiNEOTQ2OUMiLz48cGF0aCBkPSJNMCA1MEMwIDc3LjYxNDIgMjIuMzg1OCAxMDAgNTAgMTAwVjUwSDBaIiBmaWxsPSIjRjdDNEU4Ii8+PC9zdmc+',
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNTAiIGZpbGw9IiMwNEEwNEYiLz48cGF0aCBkPSJNMTAwIDUwQzEwMCAyMi4zODU4IDc3LjYxNDIgMCA1MCAwVjUwSDEwMFoiIGZpbGw9IiM2REU0RUYiLz48L3N2Zz4=',
+];
+
 const DashboardPage: React.FC<DashboardPageProps> = ({ onStartBrainstorming, sessionHistory }) => {
   const { user, logout } = useAuth();
   const [topic, setTopic] = useState('');
   const [loadingPersonas, setLoadingPersonas] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [generatedPersonas, setGeneratedPersonas] = useState<Persona[]>([]);
   const [selectedPersonas, setSelectedPersonas] = useState<Persona[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +38,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onStartBrainstorming, ses
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      setLoadingMessage('Generating personas...');
+      
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: `Generate 4 distinct user personas for a brainstorming session about '${topic}'. For each persona, provide a name (e.g., 'Creative Marketer'), a one-sentence description of their perspective, and a detailed system instruction for an AI agent that will play this role. The system instruction should define their personality, tone, and typical focus areas.`,
@@ -49,14 +60,40 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onStartBrainstorming, ses
         },
       });
       
-      const personas = JSON.parse(response.text);
-      setGeneratedPersonas(personas);
+      const personasWithoutAvatars: Omit<Persona, 'avatarUrl'>[] = JSON.parse(response.text);
+
+      setLoadingMessage('Creating avatars...');
+
+      const personasWithAvatars = await Promise.all(
+        personasWithoutAvatars.map(async (persona, index) => {
+          try {
+            const imagePrompt = `An illustrated, friendly, professional avatar for a "${persona.description}". Style: vector art, neutral-gender, simple, clean lines, circular crop. No realism, no copyrighted characters.`;
+            const imageResponse = await ai.models.generateContent({
+              model: 'gemini-2.5-flash-image',
+              contents: { parts: [{ text: imagePrompt }] },
+              config: { responseModalities: ['IMAGE'] },
+            });
+            
+            const imagePart = imageResponse.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+            if (imagePart?.inlineData) {
+              return { ...persona, avatarUrl: `data:image/png;base64,${imagePart.inlineData.data}` };
+            }
+            throw new Error("No image data in response");
+          } catch (err) {
+            console.error(`Failed to generate avatar for ${persona.name}, using placeholder.`, err);
+            return { ...persona, avatarUrl: placeholderAvatars[index % placeholderAvatars.length] };
+          }
+        })
+      );
+      
+      setGeneratedPersonas(personasWithAvatars);
 
     } catch (err) {
       console.error("Error generating personas:", err);
       setError("Failed to generate personas. Please try again.");
     } finally {
       setLoadingPersonas(false);
+      setLoadingMessage('');
     }
   };
   
@@ -111,10 +148,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onStartBrainstorming, ses
               className="w-full sm:w-auto flex justify-center items-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-all duration-300"
             >
               {loadingPersonas ? (
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>{loadingMessage || 'Generating...'}</span>
+                </>
               ) : "Generate Personas"}
             </button>
           </div>
@@ -126,12 +166,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onStartBrainstorming, ses
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Select your brainstorming team:</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {generatedPersonas.map((persona) => (
-                <label key={persona.name} className="flex items-start p-4 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600">
+                <label key={persona.name} className="flex items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600">
                   <input
                     type="checkbox"
-                    className="h-6 w-6 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500 mt-1"
+                    className="h-6 w-6 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500 flex-shrink-0"
                     onChange={(e) => handlePersonaSelection(persona, e.target.checked)}
                   />
+                  <img src={persona.avatarUrl} alt={`${persona.name} avatar`} className="w-12 h-12 rounded-full ml-4 flex-shrink-0 object-cover" />
                   <div className="ml-4">
                     <p className="font-bold text-gray-900 dark:text-white">{persona.name}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">{persona.description}</p>
