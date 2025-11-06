@@ -1,5 +1,7 @@
 {
   "name": "React Auth Page",
   "description": "A modern, responsive Login and Sign Up page built with React, TypeScript, and Tailwind CSS. It features tabbed navigation, in-memory user storage with simple password hashing, and a seamless transition to a dashboard page upon successful authentication.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }
